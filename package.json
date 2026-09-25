@@ -1,0 +1,14 @@
+{
+  "name": "hindsight",
+  "version": "1.0.0",
+  "description": "A prediction journal that shows how well-calibrated you really are.",
+  "private": true,
+  "type": "module",
+  "license": "MIT",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "test": "node --test"
+  }
+}

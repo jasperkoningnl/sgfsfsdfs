@@ -1,0 +1,212 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Hindsight</title>
+<meta name="description" content="A prediction journal that shows how well-calibrated you really are. Runs in your browser; your data stays with you.">
+<meta name="theme-color" content="#EEF2F1" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0E1418" media="(prefers-color-scheme: dark)">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%232B4DB0'/%3E%3Cpath d='M7 25 25 7' stroke='%23fff' stroke-width='2.5' stroke-linecap='round' stroke-dasharray='1 4.5'/%3E%3Ccircle cx='21' cy='15' r='4' fill='%23fff'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="styles.css">
+<script type="module" src="js/app.js"></script>
+</head>
+<body>
+<div class="page">
+
+  <header class="masthead">
+    <div class="brand">
+      <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true"><rect x="1" y="1" width="30" height="30" rx="7" fill="none" stroke="currentColor" stroke-width="2"/><path d="M7 25 25 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-dasharray="1 4.5"/><circle cx="21" cy="15" r="4" fill="currentColor"/></svg>
+      <span class="brand-name">Hindsight</span>
+    </div>
+    <p class="tagline">Write down what you expect, with a number. Check back when it's settled. Find out whether your 80% really means 80%.</p>
+  </header>
+
+  <p id="example-banner" class="banner" hidden>
+    <span class="chip chip-example">Example</span>
+    <span>You're looking at a sample journal so you can see how scoring works. Log your first prediction and your own journal replaces it.</span>
+  </p>
+
+  <section class="scoreboard" aria-label="Your track record">
+    <div class="stat">
+      <p class="eyebrow">Brier score</p>
+      <p class="stat-value" id="brier-value">–</p>
+      <div class="meter" id="brier-meter" hidden>
+        <div class="meter-track">
+          <span class="meter-coin" style="left: 50%"></span>
+          <span class="meter-you" id="brier-marker"></span>
+        </div>
+        <div class="meter-scale"><span>0 perfect</span><span>0.25 coin flip</span><span>0.5</span></div>
+      </div>
+      <p class="stat-note" id="brier-note">Settle a prediction to get a score.</p>
+    </div>
+    <div class="stat">
+      <p class="eyebrow">Confidence</p>
+      <p class="stat-value stat-value-word" id="confidence-value">–</p>
+      <p class="stat-note" id="confidence-note"></p>
+    </div>
+    <div class="stat">
+      <p class="eyebrow">Scored</p>
+      <p class="stat-value" id="count-value">0</p>
+      <p class="stat-note" id="count-note"></p>
+    </div>
+  </section>
+
+  <main class="layout">
+    <div class="journal">
+
+      <section class="panel compose" aria-labelledby="compose-title">
+        <h2 id="compose-title">New prediction</h2>
+        <form id="prediction-form" novalidate>
+          <div class="field">
+            <label for="statement">What do you expect to happen?</label>
+            <textarea id="statement" name="statement" rows="2" maxlength="280" required placeholder="e.g. I finish the first draft by Friday"></textarea>
+            <p class="hint">Write it so a stranger could tell whether it happened.</p>
+          </div>
+
+          <div class="field">
+            <label for="probability">Chance it comes true</label>
+            <div class="probability">
+              <input id="probability" name="probability" type="range" min="0" max="100" step="1" value="70" aria-describedby="probability-words">
+              <div class="probability-readout">
+                <input id="probability-number" type="number" min="0" max="100" step="1" value="70" aria-label="Chance in percent">
+                <span class="probability-unit" aria-hidden="true">%</span>
+              </div>
+            </div>
+            <p class="hint" id="probability-words">7 in 10</p>
+          </div>
+
+          <div class="field-row">
+            <div class="field">
+              <label for="resolve-by">Check on</label>
+              <input id="resolve-by" name="resolveBy" type="date">
+            </div>
+            <div class="field">
+              <label for="tag">Tag <span class="optional">optional</span></label>
+              <input id="tag" name="tag" type="text" maxlength="32" list="tag-list" autocomplete="off" placeholder="work">
+              <datalist id="tag-list"></datalist>
+            </div>
+          </div>
+
+          <div class="field">
+            <label for="notes">Why you think so <span class="optional">optional</span></label>
+            <textarea id="notes" name="notes" rows="2" maxlength="2000" placeholder="Your reasoning, so you can compare it with what happened"></textarea>
+          </div>
+
+          <p class="form-error" id="form-error" role="alert" hidden></p>
+          <div class="form-actions">
+            <button class="button button-primary" type="submit">Log prediction</button>
+            <p class="hint">Once logged, the statement and the chance are locked.</p>
+          </div>
+        </form>
+      </section>
+
+      <section class="list-section" id="due-section" aria-labelledby="due-title">
+        <h2 id="due-title">Ready to check <span class="count" id="due-count"></span></h2>
+        <ol class="predictions" id="due-list"></ol>
+      </section>
+
+      <section class="list-section" id="open-section" aria-labelledby="open-title">
+        <h2 id="open-title">Waiting <span class="count" id="open-count"></span></h2>
+        <ol class="predictions" id="open-list"></ol>
+        <p class="empty" id="open-empty" hidden>Nothing open. Log a prediction above.</p>
+      </section>
+
+      <section class="list-section" id="resolved-section" aria-labelledby="resolved-title">
+        <h2 id="resolved-title">Settled <span class="count" id="resolved-count"></span></h2>
+        <ol class="predictions" id="resolved-list"></ol>
+        <p class="empty" id="resolved-empty" hidden>Nothing settled yet.</p>
+        <button class="button button-quiet" id="show-all" type="button" hidden></button>
+      </section>
+    </div>
+
+    <aside class="panel stats" aria-labelledby="calibration-title">
+      <h2 id="calibration-title">Calibration</h2>
+      <p class="lede">Of everything you gave about 70%, did about 70% happen? Dots on the diagonal mean yes.</p>
+      <div id="chart"></div>
+      <p class="empty" id="chart-empty" hidden>The chart appears once you've settled a prediction.</p>
+
+      <div class="table-wrap" id="bins-wrap">
+        <table class="data-table" id="bins-table">
+          <caption class="visually-hidden">Calibration by range of chance given</caption>
+          <thead><tr><th scope="col">Chance given</th><th scope="col">Predictions</th><th scope="col">Average</th><th scope="col">Came true</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+
+      <div id="decomposition-block">
+        <h3>Where the score comes from</h3>
+        <dl class="decomposition" id="decomposition"></dl>
+        <p class="equation" id="equation"></p>
+      </div>
+
+      <div id="tags-block">
+        <h3>By tag</h3>
+        <div class="table-wrap">
+          <table class="data-table" id="tags-table">
+            <caption class="visually-hidden">Brier score per tag</caption>
+            <thead><tr><th scope="col">Tag</th><th scope="col">Settled</th><th scope="col">Brier</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </aside>
+  </main>
+
+  <section class="method" id="method" aria-labelledby="method-title">
+    <h2 id="method-title">How the scoring works</h2>
+    <div class="method-grid">
+      <div>
+        <h3>The Brier score</h3>
+        <p>Each settled prediction scores the squared difference between the chance you gave and what happened, counting 1 if it happened and 0 if it didn't. Your score is the average. Lower is better.</p>
+        <ul>
+          <li><strong>0</strong>: you gave 100% to everything that happened and 0% to everything that didn't.</li>
+          <li><strong>0.25</strong>: what answering 50% every time earns.</li>
+          <li><strong>1</strong>: certain every time, and wrong every time.</li>
+        </ul>
+        <p>Glenn Brier proposed the score in 1950 to grade weather forecasts. His version adds up the error for both outcomes, which doubles every number. Hindsight uses the more common single-outcome form. Predictions marked void don't count.</p>
+      </div>
+      <div>
+        <h3>The three parts</h3>
+        <p>Allan Murphy showed in 1973 that the score splits exactly into three parts: calibration error, minus discrimination, plus uncertainty.</p>
+        <ul>
+          <li><strong>Calibration error</strong> (Murphy's “reliability”): how far your stated chances sit from how often those things happened. Lower is better.</li>
+          <li><strong>Discrimination</strong> (“resolution”): how well your chances separate what happens from what doesn't. Higher is better.</li>
+          <li><strong>Uncertainty</strong>: how hard the questions were. It depends only on how often your predictions came true, not on the chances you gave.</li>
+        </ul>
+        <p>Predictions are grouped by the exact chance you gave, so the parts add up to the score without rounding error.</p>
+      </div>
+      <div>
+        <h3>The confidence check</h3>
+        <p>Even a perfectly calibrated forecaster misses sometimes. For every prediction that leaned one way, Hindsight takes your confidence in the side you favoured and counts how often that side happened. It calls you over- or underconfident only when the count is more than two standard deviations from what your own stated chances predict. With a handful of predictions that rarely happens, so expect “no clear sign” until you've settled a few dozen.</p>
+        <h3>Why predictions are locked</h3>
+        <p>Once people know how something turned out, they overestimate how predictable it was, and often don't notice they're doing it (Fischhoff, 1975). The journal only works if the chance you wrote down stays the chance you wrote down.</p>
+      </div>
+    </div>
+    <h3>Sources</h3>
+    <ol class="sources">
+      <li>Brier, G. W. (1950). Verification of forecasts expressed in terms of probability. <cite>Monthly Weather Review</cite>, 78(1), 1–3. <a href="https://journals.ametsoc.org/view/journals/mwre/78/1/1520-0493_1950_078_0001_vofeit_2_0_co_2.xml" rel="noopener">journals.ametsoc.org</a></li>
+      <li>Murphy, A. H. (1973). A new vector partition of the probability score. <cite>Journal of Applied Meteorology</cite>, 12(4), 595–600. <a href="https://journals.ametsoc.org/view/journals/apme/12/4/1520-0450_1973_012_0595_anvpot_2_0_co_2.xml" rel="noopener">journals.ametsoc.org</a></li>
+      <li>Fischhoff, B. (1975). Hindsight ≠ foresight: The effect of outcome knowledge on judgment under uncertainty. <cite>Journal of Experimental Psychology: Human Perception and Performance</cite>, 1(3), 288–299. <a href="https://doi.org/10.1037/0096-1523.1.3.288" rel="noopener">doi.org/10.1037/0096-1523.1.3.288</a></li>
+    </ol>
+  </section>
+
+  <section class="data" id="data" aria-labelledby="data-title">
+    <h2 id="data-title">Your data</h2>
+    <p id="storage-note">Your journal is kept in this browser only. Nothing is sent anywhere. Clearing site data deletes it, so export a backup now and then.</p>
+    <div class="data-actions">
+      <button class="button" id="export" type="button">Export backup</button>
+      <input class="visually-hidden" id="import-file" type="file" accept="application/json,.json">
+      <label class="button" for="import-file">Import backup</label>
+      <button class="button button-danger" id="delete-all" type="button">Delete everything</button>
+    </div>
+  </section>
+
+  <footer class="footer">
+    <p>Hindsight is open source under the MIT licence. Fonts: IBM Plex Sans and Barlow Condensed, SIL Open Font License, served from this site.</p>
+  </footer>
+</div>
+
+<div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+</body>
+</html>
